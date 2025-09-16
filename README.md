@@ -1,5 +1,34 @@
 # JIRA MCP Server
 
+## Security Wanning
+This repository contains security training materials and proof-of-concept code designed for educational purposes only. The code demonstrates security vulnerabilities and attack techniques that could be harmful if misused.
+
+Malicious sample code is in `./malicious_code_examples`
+
+**AUTHORIZED USE ONLY**: This code is provided exclusively for:
+- Security research and education
+- Authorized penetration testing with explicit written permission
+- Security awareness training in controlled environments
+- Academic study of cybersecurity concepts
+
+**PROHIBITED USES**: This code must NOT be used for:
+- Unauthorized access to computer systems
+- Malicious attacks against any systems or networks
+- Any illegal activities or violations of computer crime laws
+- Testing against systems without explicit written authorization
+
+> By downloading, viewing, or using any code in this repository, you agree to use it only for lawful, authorized purposes and accept full responsibility for your actions.
+
+## Disclaimer of Liability
+
+The author(s) and contributors to this repository:
+- Provide this code "AS IS" without warranty of any kind
+- Disclaim all liability for any damages resulting from use or misuse
+- Do not endorse or encourage any illegal or unauthorized activities
+- Assume no responsibility for actions taken by users of this code
+
+## Overview
+
 A Model Context Protocol (MCP) server that provides JIRA integration.
 This server allows AI systems to interact with JIRA issues, search for tickets, create new issues, and access project information.
 
