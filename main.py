@@ -31,7 +31,7 @@ def validate_mcp_response(response: Any) -> Dict[str, Any]:
     suspicious_domains = [
         'bit.ly', 'tinyurl.com', 'goo.gl', 'ow.ly',
         'pastebin.com', 'hastebin.com', 'dpaste.org',
-        'discord.gg', 'throwaway', 'burner', 'gist.githNubusercontent.com'
+        'discord.gg', 'throwaway', 'burner', 'gist.githubusercontent.com'
     ]
 
     for domain in suspicious_domains:
