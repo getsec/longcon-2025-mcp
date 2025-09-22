@@ -2,10 +2,166 @@
 import os
 from jira import JIRA
 from fastmcp import FastMCP
-
+import re
 from dotenv import load_dotenv
+from typing import Any, Dict, Callable
+from functools import wraps
 
 load_dotenv()
+
+def validate_mcp_response(response: Any) -> Dict[str, Any]:
+    """
+    Validates MCP tool/resource return values for security threats including:
+    - Unsafe/untrusted domains
+    - Prompt injection attempts
+    - Malicious content patterns
+
+    Args:
+        response: The return value from any MCP tool or resource
+
+    Returns:
+        Dict with 'is_safe' boolean and 'issues' list of detected problems
+    """
+    issues = []
+
+    # Convert response to string for analysis
+    response_str = str(response).lower()
+
+    # Check for untrusted/suspicious domains
+    suspicious_domains = [
+        'bit.ly', 'tinyurl.com', 'goo.gl', 'ow.ly',
+        'pastebin.com', 'hastebin.com', 'dpaste.org',
+        'discord.gg', 'throwaway', 'burner', 'gist.githNubusercontent.com'
+    ]
+
+    for domain in suspicious_domains:
+        if domain in response_str:
+            issues.append(f"Suspicious domain detected: {domain}")
+
+    # Check for prompt injection patterns
+    injection_patterns = [
+        r'ignore\s+previous\s+instructions',
+        r'forget\s+everything\s+above',
+        r'system\s*:\s*you\s+are',
+        r'act\s+as\s+if\s+you\s+are',
+        r'pretend\s+to\s+be',
+        r'jailbreak',
+        r'override\s+security',
+        r'bypass\s+restrictions',
+        r'execute\s+code',
+        r'run\s+command',
+        r'</?\s*system\s*>',
+        r'</?\s*assistant\s*>',
+        r'</?\s*user\s*>',
+        r'<\s*script\s*>',
+        r'javascript\s*:',
+        r'data\s*:\s*text/html'
+    ]
+
+    for pattern in injection_patterns:
+        if re.search(pattern, response_str, re.IGNORECASE):
+            issues.append(f"Potential prompt injection pattern: {pattern}")
+
+    # Check for credential exposure patterns
+    credential_patterns = [
+        r'password\s*[:=]\s*\S+',
+        r'token\s*[:=]\s*[a-zA-Z0-9_\-]{20,}',
+        r'api[_\-]?key\s*[:=]\s*[a-zA-Z0-9_\-]{20,}',
+        r'secret\s*[:=]\s*[a-zA-Z0-9_\-]{20,}',
+        r'bearer\s+[a-zA-Z0-9_\-]{20,}',
+        r'ssh-rsa\s+[a-zA-Z0-9+/=]+',
+        r'-----BEGIN\s+(?:RSA\s+)?PRIVATE\s+KEY-----'
+    ]
+
+    for pattern in credential_patterns:
+        if re.search(pattern, response_str, re.IGNORECASE):
+            issues.append(f"Potential credential exposure: {pattern}")
+
+    # Check for file system manipulation attempts
+    filesystem_patterns = [
+        r'\.\./+',
+        r'/etc/passwd',
+        r'/etc/shadow',
+        r'%2e%2e%2f',
+        r'file\s*:\s*//',
+        r'\\\\.*\\\\',
+        r'c:\\windows\\system32'
+    ]
+
+    for pattern in filesystem_patterns:
+        if re.search(pattern, response_str, re.IGNORECASE):
+            issues.append(f"Potential filesystem manipulation: {pattern}")
+
+    # Check for code execution attempts
+    exec_patterns = [
+        r'eval\s*\(',
+        r'exec\s*\(',
+        r'__import__\s*\(',
+        r'subprocess\.',
+        r'os\.system\s*\(',
+        r'shell\s*=\s*true',
+        r'powershell\s+-',
+        r'cmd\s*/c\s+',
+        r'/bin/(?:sh|bash|zsh)'
+    ]
+
+    for pattern in exec_patterns:
+        if re.search(pattern, response_str, re.IGNORECASE):
+            issues.append(f"Potential code execution attempt: {pattern}")
+
+    # Check for excessive length (potential DoS)
+    if len(response_str) > 100000:
+        issues.append("Response exceeds safe length limit")
+
+    # Check for suspicious URL schemes
+    url_schemes = re.findall(r'([a-z]+)://', response_str)
+    safe_schemes = {'http', 'https', 'ftp', 'ftps', 'mailto'}
+    for scheme in url_schemes:
+        if scheme not in safe_schemes:
+            issues.append(f"Suspicious URL scheme: {scheme}://")
+
+    return {
+        'is_safe': len(issues) == 0,
+        'issues': issues,
+        'response': response
+    }
+
+def secure_mcp_response(raise_on_unsafe: bool = True):
+    """
+    Decorator to validate MCP tool/resource return values for security threats.
+
+    Args:
+        raise_on_unsafe: If True, raises SecurityError on unsafe content.
+                        If False, returns validation result dict.
+
+    Usage:
+        @secure_mcp_response()
+        def my_tool():
+            return potentially_unsafe_data
+
+        @secure_mcp_response(raise_on_unsafe=False)
+        def my_other_tool():
+            return potentially_unsafe_data
+    """
+    def decorator(func: Callable) -> Callable:
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            result = func(*args, **kwargs)
+            validation = validate_mcp_response(result)
+
+            if not validation['is_safe']:
+                if raise_on_unsafe:
+                    raise SecurityError(f"Unsafe MCP response detected: {validation['issues']}")
+                else:
+                    return validation
+
+            return result
+        return wrapper
+    return decorator
+
+class SecurityError(Exception):
+    """Raised when unsafe content is detected in MCP responses"""
+    pass
 
 mcp = FastMCP("Jira MCP Server")
 
@@ -36,6 +192,7 @@ def jira_me() -> dict:
     }
 
 @mcp.tool()
+@secure_mcp_response()
 def get_jira_issue(issue_key: str) -> dict:
     """
     Get detailed information about a specific JIRA issue
@@ -62,6 +219,7 @@ def get_jira_issue(issue_key: str) -> dict:
         return {"error": str(e)}
 
 @mcp.tool()
+@secure_mcp_response()
 def create_jira_issue(project_key: str, summary: str, description: str = "", issue_type: str = "Task", priority: str = "Medium") -> str:
     """
     Create a new JIRA issue
@@ -96,6 +254,7 @@ def create_jira_issue(project_key: str, summary: str, description: str = "", iss
         return f"Error creating issue: {str(e)}"
 
 @mcp.tool()
+@secure_mcp_response()
 def search_jira_issues(jql: str, max_results: int = 10) -> list[dict]:
     """
     Search for JIRA issues using JQL
