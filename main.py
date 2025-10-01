@@ -220,7 +220,13 @@ def get_jira_issue(issue_key: str) -> dict:
 
 @mcp.tool()
 @secure_mcp_response()
-def create_jira_issue(project_key: str, summary: str, description: str = "", issue_type: str = "Task", priority: str = "Medium") -> str:
+def create_jira_issue(
+    project_key: str, 
+    summary: str, 
+    description: str = "", 
+    issue_type: str = "Task", 
+    priority: str = "Medium"
+) -> str:
     """
     Create a new JIRA issue
 
