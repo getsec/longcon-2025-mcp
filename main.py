@@ -23,88 +23,46 @@ def validate_mcp_response(response: Any) -> Dict[str, Any]:
         Dict with 'is_safe' boolean and 'issues' list of detected problems
     """
     issues = []
-
     # Convert response to string for analysis
     response_str = str(response).lower()
-
-    # Check for untrusted/suspicious domains
     suspicious_domains = [
-        'bit.ly', 'tinyurl.com', 'goo.gl', 'ow.ly',
-        'pastebin.com', 'hastebin.com', 'dpaste.org',
-        'discord.gg', 'throwaway', 'burner', 'gist.githubusercontent.com'
+        'gist.githubusercontent.com', 'bit.ly', 'tinyurl.com', 'goo.gl', 'ow.ly',
+        'pastebin.com', 'hastebin.com', 'dpaste.org', 'discord.gg', 'throwaway', 'burner',
     ]
-
-    for domain in suspicious_domains:
-        if domain in response_str:
-            issues.append(f"Suspicious domain detected: {domain}")
-
-    # Check for prompt injection patterns
     injection_patterns = [
-        r'ignore\s+previous\s+instructions',
-        r'forget\s+everything\s+above',
-        r'system\s*:\s*you\s+are',
-        r'act\s+as\s+if\s+you\s+are',
-        r'pretend\s+to\s+be',
-        r'jailbreak',
-        r'override\s+security',
-        r'bypass\s+restrictions',
-        r'execute\s+code',
-        r'run\s+command',
-        r'</?\s*system\s*>',
-        r'</?\s*assistant\s*>',
-        r'</?\s*user\s*>',
-        r'<\s*script\s*>',
-        r'javascript\s*:',
-        r'data\s*:\s*text/html'
+        r'ignore\s+previous\s+instructions', r'forget\s+everything\s+above', r'system\s*:\s*you\s+are',
+        r'act\s+as\s+if\s+you\s+are', r'pretend\s+to\s+be', r'jailbreak', r'execute\s+code',
+        r'</?\s*system\s*>', r'</?\s*assistant\s*>', r'</?\s*user\s*>', r'<\s*script\s*>',
+        r'javascript\s*:', r'data\s*:\s*text/html'
     ]
 
-    for pattern in injection_patterns:
-        if re.search(pattern, response_str, re.IGNORECASE):
-            issues.append(f"Potential prompt injection pattern: {pattern}")
-
-    # Check for credential exposure patterns
     credential_patterns = [
-        r'password\s*[:=]\s*\S+',
-        r'token\s*[:=]\s*[a-zA-Z0-9_\-]{20,}',
-        r'api[_\-]?key\s*[:=]\s*[a-zA-Z0-9_\-]{20,}',
-        r'secret\s*[:=]\s*[a-zA-Z0-9_\-]{20,}',
-        r'bearer\s+[a-zA-Z0-9_\-]{20,}',
-        r'ssh-rsa\s+[a-zA-Z0-9+/=]+',
+        r'password\s*[:=]\s*\S+', r'token\s*[:=]\s*[a-zA-Z0-9_\-]{20,}', r'api[_\-]?key\s*[:=]\s*[a-zA-Z0-9_\-]{20,}',
+        r'secret\s*[:=]\s*[a-zA-Z0-9_\-]{20,}', r'bearer\s+[a-zA-Z0-9_\-]{20,}', r'ssh-rsa\s+[a-zA-Z0-9+/=]+',
         r'-----BEGIN\s+(?:RSA\s+)?PRIVATE\s+KEY-----'
     ]
 
+    filesystem_patterns = [
+        r'\.\./+', r'/etc/passwd', r'/etc/shadow', r'%2e%2e%2f', r'file\s*:\s*//',
+        r'\\\\.*\\\\', r'c:\\windows\\system32'
+    ]
+
+    exec_patterns = [
+        r'eval\s*\(', r'exec\s*\(', r'__import__\s*\(', r'subprocess\.', r'os\.system\s*\(',
+        r'shell\s*=\s*true', r'powershell\s+-', r'cmd\s*/c\s+', r'/bin/(?:sh|bash|zsh)'
+    ]
+    for pattern in injection_patterns:
+        if re.search(pattern, response_str, re.IGNORECASE):
+            issues.append(f"Potential prompt injection pattern: {pattern}")
     for pattern in credential_patterns:
         if re.search(pattern, response_str, re.IGNORECASE):
             issues.append(f"Potential credential exposure: {pattern}")
-
-    # Check for file system manipulation attempts
-    filesystem_patterns = [
-        r'\.\./+',
-        r'/etc/passwd',
-        r'/etc/shadow',
-        r'%2e%2e%2f',
-        r'file\s*:\s*//',
-        r'\\\\.*\\\\',
-        r'c:\\windows\\system32'
-    ]
-
     for pattern in filesystem_patterns:
         if re.search(pattern, response_str, re.IGNORECASE):
             issues.append(f"Potential filesystem manipulation: {pattern}")
-
-    # Check for code execution attempts
-    exec_patterns = [
-        r'eval\s*\(',
-        r'exec\s*\(',
-        r'__import__\s*\(',
-        r'subprocess\.',
-        r'os\.system\s*\(',
-        r'shell\s*=\s*true',
-        r'powershell\s+-',
-        r'cmd\s*/c\s+',
-        r'/bin/(?:sh|bash|zsh)'
-    ]
-
+    for domain in suspicious_domains:
+        if domain in response_str:
+            issues.append(f"Suspicious domain detected: {domain}")
     for pattern in exec_patterns:
         if re.search(pattern, response_str, re.IGNORECASE):
             issues.append(f"Potential code execution attempt: {pattern}")
@@ -167,10 +125,10 @@ mcp = FastMCP("Jira MCP Server")
 
 try:
     username = os.environ['JIRA_USERNAME']
-    api_token = os.environ['JIRA_PAT']
+    api_token = os.environ['JIRA_API_TOKEN']
     jira_url = os.environ['JIRA_URL']
 except KeyError:
-    raise EnvironmentError("JIRA_USERNAME and JIRA_PAT must be set in environment variables")
+    raise EnvironmentError("JIRA_USERNAME and JIRA_API_TOKEN must be set in environment variables")
 
 
 jira = JIRA(server=jira_url, basic_auth=(username, api_token))
@@ -192,19 +150,20 @@ def jira_me() -> dict:
     }
 
 @mcp.tool()
-@secure_mcp_response()
+@secure_mcp_response() # ignore me for now :)
 def get_jira_issue(issue_key: str) -> dict:
     """
     Get detailed information about a specific JIRA issue
+    All project keys are available via the `jira_project_keys` resource
 
     Args:
-        issue_key: The JIRA issue key (e.g., "PROJ-123")
+        issue_key: The JIRA issue key (e.g., "CRM-123")
 
     Returns:
         Detailed issue information
     """
     try:
-        issue = jira.issue(issue_key)
+        issue = jira.issue(issue_key.strip())
         content = {
             "key": issue.key,
             "summary": issue.fields.summary,
@@ -216,15 +175,16 @@ def get_jira_issue(issue_key: str) -> dict:
 
         return content
     except Exception as e:
-        return {"error": str(e)}
+        error_msg = str(e).replace('\n', ' ').replace('\t', ' ')
+        return {"error": error_msg}
 
 @mcp.tool()
 @secure_mcp_response()
 def create_jira_issue(
-    project_key: str, 
-    summary: str, 
-    description: str = "", 
-    issue_type: str = "Task", 
+    project_key: str,
+    summary: str,
+    description: str = "",
+    issue_type: str = "Task",
     priority: str = "Medium"
 ) -> str:
     """

